@@ -51,6 +51,7 @@ class KISS():
     CMD_CR          = 0x05
     CMD_RADIO_STATE = 0x06
     CMD_RADIO_LOCK  = 0x07
+    CMD_GPS         = 0xA0
     CMD_ST_ALOCK    = 0x0B
     CMD_LT_ALOCK    = 0x0C
     CMD_DETECT      = 0x08
@@ -715,6 +716,18 @@ class RNodeInterface(Interface):
                         self.process_incoming(data_buffer)
                         data_buffer = b""
                         command_buffer = b""
+                    elif (byte == KISS.FEND and command == KISS.CMD_GPS):
+                        in_frame = False
+                        if (command_buffer[0] == KISS.GPS_CMD_LAT):
+                            self.r_lat = int.from_bytes(command_buffer[1:], signed = True)
+                            RNS.log(f"{str(command_buffer[1:])}", RNS.LOG_DEBUG)
+                            RNS.log(f"LAT: {self.r_lat / 1000000}", RNS.LOG_DEBUG)
+                        elif (command_buffer[0] == KISS.GPS_CMD_LNG):
+                            self.r_lng = int.from_bytes(command_buffer[1:], signed = True)
+                            RNS.log(f"{str(command_buffer[1:])}", RNS.LOG_DEBUG)
+                            RNS.log(f"LNG: {self.r_lng / 1000000}", RNS.LOG_DEBUG)
+                        command_buffer = b""
+                        command = KISS.CMD_UNKNOWN
                     elif (byte == KISS.FEND):
                         in_frame = True
                         command = KISS.CMD_UNKNOWN
