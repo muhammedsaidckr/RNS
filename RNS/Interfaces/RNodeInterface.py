@@ -51,7 +51,6 @@ class KISS():
     CMD_CR          = 0x05
     CMD_RADIO_STATE = 0x06
     CMD_RADIO_LOCK  = 0x07
-    CMD_GPS         = 0xA0
     CMD_ST_ALOCK    = 0x0B
     CMD_LT_ALOCK    = 0x0C
     CMD_DETECT      = 0x08
@@ -77,6 +76,11 @@ class KISS():
     CMD_FW_VERSION  = 0x50
     CMD_ROM_READ    = 0x51
     CMD_RESET       = 0x55
+    CMD_GPS         = 0xA0
+    CMD_BRD_LOC     = 0x1A
+
+    GPS_CMD_LAT     = 0x00
+    GPS_CMD_LNG     = 0x01
 
     DETECT_REQ      = 0x73
     DETECT_RESP     = 0x46
@@ -194,6 +198,8 @@ class RNodeInterface(Interface):
         self.online      = False
         self.detached    = False
         self.reconnecting= False
+        self.r_lat       = 0.0
+        self.r_lng       = 0.0
         self.hw_errors   = []
 
         self.use_ble     = False
@@ -590,11 +596,14 @@ class RNodeInterface(Interface):
                 raise IOError("An IO error occurred while configuring long-term airtime limit for "+str(self))
 
     def setRadioState(self, state):
-        self.state = state
-        kiss_command = bytes([KISS.FEND])+bytes([KISS.CMD_RADIO_STATE])+bytes([state])+bytes([KISS.FEND])
-        written = self.serial.write(kiss_command)
-        if written != len(kiss_command):
-            raise IOError("An IO error occurred while configuring radio state for "+str(self))
+        try:
+            self.state = state
+            kiss_command = bytes([KISS.FEND])+bytes([KISS.CMD_RADIO_STATE])+bytes([state])+bytes([KISS.FEND])
+            written = self.serial.write(kiss_command)
+            if written != len(kiss_command):
+                raise IOError("An IO error occurred while configuring radio state for "+str(self))
+        except Exception as e:
+            print(f"error while set radio state {e}")
 
     def validate_firmware(self):
         if (self.maj_version > RNodeInterface.REQUIRED_FW_VER_MAJ):
@@ -719,13 +728,19 @@ class RNodeInterface(Interface):
                     elif (byte == KISS.FEND and command == KISS.CMD_GPS):
                         in_frame = False
                         if (command_buffer[0] == KISS.GPS_CMD_LAT):
-                            self.r_lat = int.from_bytes(command_buffer[1:], signed = True)
-                            RNS.log(f"{str(command_buffer[1:])}", RNS.LOG_DEBUG)
-                            RNS.log(f"LAT: {self.r_lat / 1000000}", RNS.LOG_DEBUG)
+                            try:
+                                self.r_lat = int.from_bytes(command_buffer[1:], signed = True)
+                                #RNS.log(f"{str(command_buffer[1:])}", RNS.LOG_DEBUG)
+                                RNS.log(f"LAT: {self.r_lat / 1000000}", RNS.LOG_DEBUG)
+                            except Exception as e:
+                                RNS.log(f"When getting GPS_CMD_LAT error occured: {e}")
                         elif (command_buffer[0] == KISS.GPS_CMD_LNG):
-                            self.r_lng = int.from_bytes(command_buffer[1:], signed = True)
-                            RNS.log(f"{str(command_buffer[1:])}", RNS.LOG_DEBUG)
-                            RNS.log(f"LNG: {self.r_lng / 1000000}", RNS.LOG_DEBUG)
+                            try:
+                                self.r_lng = int.from_bytes(command_buffer[1:], signed = True)
+                                #RNS.log(f"{str(command_buffer[1:])}", RNS.LOG_DEBUG)
+                                RNS.log(f"LNG: {self.r_lng / 1000000}", RNS.LOG_DEBUG)
+                            except Exception as e:
+                                RNS.log(f"When getting GPS_CMD_LNG error occured {e}")
                         command_buffer = b""
                         command = KISS.CMD_UNKNOWN
                     elif (byte == KISS.FEND):
